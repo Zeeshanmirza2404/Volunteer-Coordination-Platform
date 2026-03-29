@@ -1,78 +1,70 @@
-import React, { useEffect, lazy, Suspense } from "react";
-import { Routes, Route, useNavigate } from 'react-router-dom';
-import { setNavigate } from './api.js';
-import ErrorBoundary from './components/ErrorBoundary.jsx';
-import Navbar from "./components/Navbar.jsx";
-import Footer from "./components/Footer.jsx";
-import PrivateRoute from './components/PrivateRoute.jsx';
+import React, { lazy, Suspense } from 'react';
+import { Routes, Route } from "react-router-dom";
 
-// Lazy load route components for code splitting
+// Components
+
+import ErrorBoundary from "./components/ErrorBoundary";
+import LoadingFallback from "./components/LoadingFallback";
+import NavigationSetter from "./components/NavigationSetter";
+import PrivateRoute from "./components/PrivateRoute";
+
+// Lazy load route components
 const Home = lazy(() => import("./pages/Home.jsx"));
-const Register = lazy(() => import("./pages/Register.jsx"));
 const Login = lazy(() => import("./pages/Login.jsx"));
-const Donations = lazy(() => import("./pages/Donations.jsx"));
-const AdminDashboard = lazy(() => import("./pages/AdminDashboard.jsx"));
-const VolunteerDashboard = lazy(() => import('./pages/VolunteerDashboard.jsx'));
-const NGODashboard = lazy(() => import("./pages/NGODashboard.jsx"));
-const VolunteerEvents = lazy(() => import("./pages/VolunteerEvents.jsx"));
-const NGOForm = lazy(() => import("./pages/NGOForm.jsx"));
-const Events = lazy(() => import('./pages/Events.jsx'));
+const Register = lazy(() => import("./pages/Register.jsx"));
 
-// Loading fallback component
-const LoadingFallback = () => (
-  <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
-    <div className="spinner-border text-primary" role="status">
-      <span className="visually-hidden">Loading...</span>
-    </div>
-  </div>
-);
+// Events
+const Events = lazy(() => import('./pages/Events.jsx'));
+const Donate = lazy(() => import("./pages/Donations.jsx"));
+
+// Dashboards & Onboarding
+const VolunteerDashboard = lazy(() => import('./pages/VolunteerDashboard.jsx'));
+const VolunteerOnboarding = lazy(() => import("./pages/VolunteerOnBoarding.jsx"));
+const NGODashboard = lazy(() => import("./pages/NGODashboard.jsx"));
+const NGOOnboarding = lazy(() => import("./pages/NGOOnBoarding.jsx"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard.jsx"));
+
+// Utility Pages
+const NotFound = lazy(() => import("./pages/NotFound.jsx"));
 
 function App() {
-  const navigate = useNavigate();
-
-  // Set navigate function for API layer on mount
-  useEffect(() => {
-    setNavigate(navigate);
-  }, [navigate]);
-
   return (
     <ErrorBoundary>
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
-        <div className="flex-1 flex flex-col">
+      <div className="d-flex flex-column min-vh-100">
+
+        
+        <div className="flex-grow-1 d-flex flex-column">
           <Suspense fallback={<LoadingFallback />}>
+            <NavigationSetter />
+            
             <Routes>
+              {/* Public Routes */}
               <Route path="/" element={<Home />} />
-              <Route path="/register" element={<Register />} />
               <Route path="/login" element={<Login />} />
-              <Route path="/donate" element={<Donations />} />
-              <Route
-                path="/ngo/dashboard"
-                element={
-                  <PrivateRoute allowedRoles={['ngo']}>
-                    <NGODashboard />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/admin/dashboard"
+              <Route path="/register" element={<Register />} />
+              <Route path="/events" element={<Events />} />
+              <Route path="/donate" element={<Donate />} />
+              
+              {/* Volunteer Routes */}
+              <Route path="/volunteer-dashboard" element={<VolunteerDashboard />} />
+              <Route path="/volunteer-onboarding" element={<VolunteerOnboarding />} />
+              
+              {/* NGO Routes */}
+              <Route path="/ngo-dashboard" element={<NGODashboard />} />
+              <Route path="/ngo-onboarding" element={<NGOOnboarding />} />
+              
+              {/* Admin Routes */}
+              <Route 
+                path="/admin-dashboard" 
                 element={
                   <PrivateRoute allowedRoles={['admin']}>
                     <AdminDashboard />
                   </PrivateRoute>
-                }
-              />  
-              <Route
-                path="/volunteer/dashboard"
-                element={
-                  <PrivateRoute allowedRoles={['volunteer']}>
-                    <VolunteerDashboard />
-                  </PrivateRoute>
-                }
+                } 
               />
-              <Route path="/volunteer-events" element={<VolunteerEvents />} />
-              <Route path="/events" element={<Events />} />
-              <Route path="/ngo/:id" element={<NGOForm />} />
+              
+              {/* Fallback */}
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
         </div>

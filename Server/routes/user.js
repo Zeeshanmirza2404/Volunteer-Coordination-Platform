@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const { HTTP_STATUS } = require('../config/constants');
 
-// General authentication middleware (for /me)
+// General authentication middleware
 const authenticate = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ message: 'Unauthorized' });
@@ -33,11 +34,23 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// GET /api/user - get all users (for admin)
+/**
+ * GET /api/user
+ * Get all users (for admin)
+ * Auth: Required (Admin only)
+ */
 router.get('/', async (req, res) => {
   try {
-    const users = await User.find().select('name email role');
-    res.json(users);
+    const users = await User.find()
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    res.status(HTTP_STATUS.OK || 200).json({
+      success: true,
+      count: users.length,
+      data: users
+    });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -63,6 +76,5 @@ router.delete('/:id', verifyToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete user' });
   }
 });
-
 
 module.exports = router;

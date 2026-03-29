@@ -1,10 +1,3 @@
-/**
- * Authentication Middleware
- * Verifies JWT token from Authorization header
- * Token format: "Bearer <token>"
- * Sets req.user with decoded token data
- */
-
 const jwt = require('jsonwebtoken');
 
 const verifyToken = (req, res, next) => {

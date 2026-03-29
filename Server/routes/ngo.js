@@ -1,11 +1,7 @@
-/**
- * NGO Routes
- * Handles NGO registration, retrieval, updates, and approval
- */
-
 const express = require('express');
 const router = express.Router();
 const NGO = require('../models/NGO');
+const User = require('../models/User');
 const { verifyToken } = require('../middleware/authMiddleware');
 const { HTTP_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } = require('../config/constants');
 
@@ -16,14 +12,20 @@ const { HTTP_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } = require('../config/con
  */
 router.post('/register', verifyToken, async (req, res, next) => {
   try {
-    const { name, email, phone, address, description, website } = req.body;
+    const { name, email, phone, address, description, website, category, mission } = req.body;
 
-    // Check if NGO already exists with this email
-    const existingNGO = await NGO.findOne({ email });
+
+
+    // Check if user already has an NGO
+    const existingNGO = await NGO.findOne({ userId: req.user.id });
     if (existingNGO) {
-      const error = new Error(ERROR_MESSAGES.NGO_EXISTS);
-      error.statusCode = HTTP_STATUS.CONFLICT;
-      return next(error);
+      await User.findByIdAndUpdate(req.user.id, { onboardingCompleted: true });
+      
+      return res.status(HTTP_STATUS.OK).json({ 
+        success: true,
+        message: 'NGO already registered', 
+        data: existingNGO 
+      });
     }
 
     // Create new NGO
@@ -34,10 +36,15 @@ router.post('/register', verifyToken, async (req, res, next) => {
       address,
       description,
       website,
+      category,
+      mission,
       userId: req.user.id
     });
 
     await newNGO.save();
+    
+    // Mark onboarding as completed
+    await User.findByIdAndUpdate(req.user.id, { onboardingCompleted: true });
     
     res.status(HTTP_STATUS.CREATED).json({ 
       success: true,
@@ -62,6 +69,30 @@ router.get('/', async (req, res, next) => {
       success: true,
       count: ngos.length,
       data: ngos
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Get authenticated user's NGO
+ * GET /api/ngo/my
+ * Auth: Required
+ */
+router.get('/my', verifyToken, async (req, res, next) => {
+  try {
+    const ngo = await NGO.findOne({ userId: req.user.id });
+    
+    if (!ngo) {
+      const error = new Error(ERROR_MESSAGES.NGO_NOT_FOUND);
+      error.statusCode = HTTP_STATUS.NOT_FOUND;
+      return next(error);
+    }
+    
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      data: ngo
     });
   } catch (error) {
     next(error);

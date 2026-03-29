@@ -1,8 +1,3 @@
-/**
- * Authentication Routes
- * Register and login endpoints with validation
- */
-
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');

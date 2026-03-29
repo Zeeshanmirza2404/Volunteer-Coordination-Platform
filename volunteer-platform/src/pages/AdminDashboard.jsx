@@ -1,200 +1,397 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import DashboardHeader from "@/components/DashboardHeader";
+import StatsCard from "@/components/StatsCard";
+import { useState, useEffect } from "react";
+import API, { getErrorMessage } from "../api";
+import { useToast } from "../context/ToastContext";
+
+const CollapsibleSection = ({ title, children, defaultOpen = false }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="card mb-4" style={{ border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="card-header bg-white d-flex w-100 align-items-center justify-content-between text-start btn btn-link text-decoration-none"
+        style={{ borderBottom: isOpen ? '1px solid #e5e7eb' : 'none', borderRadius: '12px', padding: '16px 20px' }}
+      >
+        <h3 className="h6 fw-semibold text-dark mb-0" style={{ fontSize: '15px' }}>{title}</h3>
+        <i className={`bi bi-chevron-${isOpen ? 'up' : 'down'} text-muted`}></i>
+      </button>
+      {isOpen && <div className="card-body px-4 pb-3 pt-3">{children}</div>}
+    </div>
+  );
+};
 
 const AdminDashboard = () => {
-  const [users, setUsers] = useState([]);
-  const [ngos, setNgos] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [donations, setDonations] = useState([]);
-  const [expanded, setExpanded] = useState('');
-  const navigate = useNavigate();
-  const token = localStorage.getItem('token');
-
-  const toggleSection = (section) => {
-    setExpanded(expanded === section ? '' : section);
-  };
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return navigate('/login');
-
-    const { role } = JSON.parse(atob(token.split('.')[1]));
-    if (role !== 'admin') return navigate('/login');
-  }, []);
+  const { showToast } = useToast();
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalNGOs: 0,
+    totalEvents: 0,
+    totalDonations: 0,
+  });
+  const [pendingNGOs, setPendingNGOs] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [allEvents, setAllEvents] = useState([]);
+  const [allDonations, setAllDonations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchAllData();
   }, []);
 
-const fetchAllData = async () => {
-  try {
-    if (!token) {
-      console.error('No authentication token found');
+  const fetchAllData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      // Fetch all data in parallel
+      const [usersRes, ngosRes, eventsRes, donationsRes] = await Promise.all([
+        API.get('/user'),
+        API.get('/admin/ngos'),
+        API.get('/event'),
+        API.get('/donate')
+      ]);
+
+      console.log('Admin Dashboard API Responses:', {
+        users: usersRes.data,
+        ngos: ngosRes.data,
+        events: eventsRes.data,
+        donations: donationsRes.data
+      });
+
+      // Extract data from responses (handle different formats)
+      const users = usersRes.data.data || usersRes.data || [];
+      const ngos = Array.isArray(ngosRes.data) ? ngosRes.data : (ngosRes.data.data || []);
+      const events = eventsRes.data.data || eventsRes.data || [];
+      const donations = donationsRes.data.data || donationsRes.data || [];
+
+      console.log('Extracted Data:', {
+        usersCount: users.length,
+        ngosCount: ngos.length,
+        eventsCount: events.length,
+        donationsCount: donations.length
+      });
+
+      // Calculate stats
+      const completedDonations = donations.filter(d => d.paymentStatus === 'completed');
+      const totalDonationAmount = completedDonations.reduce((sum, d) => sum + d.amount, 0);
+
+      setStats({
+        totalUsers: users.length,
+        totalNGOs: ngos.length,
+        totalEvents: events.length,
+        totalDonations: totalDonationAmount,
+      });
+
+      // Set pending NGOs (filter by status)
+      const pendingNGOs = ngos.filter(ngo => ngo.status === 'pending');
+      console.log('Pending NGOs:', pendingNGOs);
+      setPendingNGOs(pendingNGOs);
+
+      // Set all data (sorted by newest first)
+      setAllUsers(users.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+      setAllEvents(events.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date)));
+      setAllDonations(donations);
+
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load dashboard data');
+      console.error('Admin dashboard error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApproveNGO = async (ngoId) => {
+    try {
+      await API.put(`/ngo/${ngoId}/approve`);
+      showToast("NGO approved successfully!", "success");
+      // Refresh data
+      fetchAllData();
+    } catch (err) {
+      showToast(getErrorMessage(err), "danger");
+    }
+  };
+
+  const handleRejectNGO = async (ngoId) => {
+    try {
+      await API.put(`/admin/approve/${ngoId}`, { status: 'rejected' });
+      showToast("NGO rejected", "warning");
+      // Refresh data
+      fetchAllData();
+    } catch (err) {
+      showToast(getErrorMessage(err), "danger");
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       return;
     }
 
-    const headers = { Authorization: `Bearer ${token}` };
-
-    const [userRes, ngoRes, eventRes, donationRes] = await Promise.all([
-      axios.get('http://localhost:5000/api/user', { headers }),
-      axios.get('http://localhost:5000/api/admin/ngos', { headers }),
-      axios.get('http://localhost:5000/api/event', { headers }),
-      axios.get('http://localhost:5000/api/donate', { headers })
-    ]);
-
-    // Set data with proper error checking
-    if (userRes.data) setUsers(Array.isArray(userRes.data) ? userRes.data : userRes.data.users || []);
-    if (ngoRes.data) setNgos(Array.isArray(ngoRes.data) ? ngoRes.data : ngoRes.data.ngos || []);
-    if (eventRes.data) setEvents(Array.isArray(eventRes.data) ? eventRes.data : eventRes.data.events || []);
-    if (donationRes.data) setDonations(Array.isArray(donationRes.data) ? donationRes.data : donationRes.data.donations || []);
-
-  } catch (error) {
-    console.error('Error loading admin data:', error.response?.data || error.message);
-    alert('Failed to fetch data. Please check your connection and try again.');
-  }
-};
-
-  const handleApprove = (id) => {
-    axios.put(`http://localhost:5000/api/admin/approve/${id}`, {}, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(() => {
-        setNgos(prev => prev.map(ngo => ngo._id === id ? { ...ngo, isApproved: true } : ngo));
-      })
-      .catch(err => console.log(err));
+    try {
+      await API.delete(`/user/${userId}`);
+      showToast("User deleted successfully", "success");
+      // Refresh data
+      fetchAllData();
+    } catch (err) {
+      showToast(getErrorMessage(err), "danger");
+    }
   };
 
-  const handleRemoveUser = async (userId) => {
-  if (!window.confirm('Are you sure you want to remove this user?')) return;
+  const handleDeleteEvent = async (eventId) => {
+    if (!window.confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
+      return;
+    }
 
-  try {
-    const headers = { Authorization: `Bearer ${token}` };
-    await axios.delete(`http://localhost:5000/api/user/${userId}`, { headers });
+    try {
+      await API.delete(`/event/${eventId}`);
+      showToast("Event deleted successfully", "success");
+      // Refresh data
+      fetchAllData();
+    } catch (err) {
+      showToast(getErrorMessage(err), "danger");
+    }
+  };
 
-    setUsers(prev => prev.filter(users => users._id !== userId));
-  } catch (err) {
-    console.error("Failed to remove user:", err.response?.data || err.message);
-    alert("Failed to remove user. Check backend.");
+  if (loading) {
+    return (
+      <div className="d-flex flex-column min-vh-100 bg-light">
+        <Navbar />
+        <div className="flex-grow-1 d-flex align-items-center justify-content-center">
+          <div className="text-center">
+            <div className="spinner-border text-success" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="mt-3 text-muted">Loading dashboard...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
   }
-};
-
-
 
   return (
-    <div className="space-y-6 p-6 max-w-6xl mx-auto">
-      <header className="p-2 flex justify-between items-center bg-dark text-white mb-2">
-        <h1 className="text-lg font-semibold">Admin Panel – VolunteerConnect</h1>
-      </header>
+    <div className="d-flex flex-column min-vh-100 bg-light">
+      <Navbar />
 
-      <section className='bg-gray-100 p-3 mt-0 mb-4 rounded shadow'>
-        <h2 className="text-xl font-semibold px-2 mb-1">Welcome, Admin</h2>
-        <p className="text-sm px-2 text-gray-600">Manage all NGOs, users, events, and donations here.</p>
-      </section>
+      <DashboardHeader
+        title="Admin Panel"
+        subtitle="Manage all NGOs, users, events, and donations here."
+        userName="Admin"
+      />
 
-      {/* Summary Widgets */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-4 px-4 mb-4">
-        <div className="bg-white p-2 m-1 rounded shadow text-center">
-          <h3 className="text-sm text-gray-600">Total Users</h3>
-          <p className="text-xl font-bold text-gray-800">{users.length}</p>
-        </div>
-        <div className="bg-white p-2 m-1 rounded shadow text-center">
-          <h3 className="text-sm text-gray-600">Total NGOs</h3>
-          <p className="text-xl font-bold text-gray-800">{ngos.length}</p>
-        </div>
-        <div className="bg-white p-2 m-1 rounded shadow text-center">
-          <h3 className="text-sm text-gray-600">Total Events</h3>
-          <p className="text-xl font-bold text-gray-800">{events.length}</p>
-        </div>
-        <div className="bg-white p-2 m-1 rounded shadow text-center">
-          <h3 className="text-sm text-gray-600">Total Donations</h3>
-          <p className="text-xl font-bold text-gray-800">₹{donations.reduce((sum, d) => sum + d.amount, 0)}</p>
-        </div>
-      </section>
-
-      <section className="mb-4 px-4">
-        <h2 className="text-xl font-semibold text-gray-800 cursor-pointer flex justify-between items-center "
-          onClick={() => toggleSection('ngo')}>NGO Approvals <span>{expanded === 'ngo' ? '▲' : '▼'}</span></h2>
-        {expanded === 'ngo' && (
-          <div className="overflow-x-auto mx-5 mt-4">
-            <table className="text-sm w-full bg-white shadow rounded">
-              <thead className="bg-gray-200">
-                <tr>
-                  <th className="p-2 border">Name</th>
-                  <th className="p-2 border">Email</th>
-                  <th className="p-2 border">Approved</th>
-                  <th className="p-2 border">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ngos.map(ngo => (
-                  <tr key={ngo._id}>
-                    <td className="border p-2">{ngo.name}</td>
-                    <td className="border p-2">{ngo.email}</td>
-                    <td className="border p-2">{ngo.isApproved ? "Yes" : "No"}</td>
-                    <td className="border p-2">
-                      {!ngo.isApproved && (
-                        <button onClick={() => handleApprove(ngo._id)} className="bg-dark text-white px-4 py-2 rounded m-1">
-                          Approve
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <main className="flex-grow-1 py-5">
+        <div className="container">
+          {/* Stats Grid */}
+          <div className="row g-4 mb-5">
+            <div className="col-sm-6 col-lg-3">
+              <StatsCard
+                title="Total Users"
+                value={stats.totalUsers.toLocaleString()}
+                icon="bi-people"
+                variant="primary"
+              />
+            </div>
+            <div className="col-sm-6 col-lg-3">
+              <StatsCard
+                title="Total NGOs"
+                value={stats.totalNGOs}
+                icon="bi-building"
+                variant="secondary"
+              />
+            </div>
+            <div className="col-sm-6 col-lg-3">
+              <StatsCard
+                title="Total Events"
+                value={stats.totalEvents}
+                icon="bi-calendar-event"
+                variant="success"
+              />
+            </div>
+            <div className="col-sm-6 col-lg-3">
+              <StatsCard
+                title="Total Donations"
+                value={`₹${stats.totalDonations.toLocaleString()}`}
+                icon="bi-currency-rupee"
+                variant="warning"
+              />
+            </div>
           </div>
-        )}
-      </section>
 
-      <section className="mb-4 px-4">
-        <h2 className="text-xl font-semibold text-gray-800 cursor-pointer flex justify-between items-center"
-          onClick={() => toggleSection('users')}>All Users <span>{expanded === 'users' ? '▲' : '▼'}</span></h2>
-        {expanded === 'users' && (
-          <ul className="mt-4 space-y-2 ">
-            {users.map(u => (
-              <li key={u._id} className="text-sm text-gray-700 border rounded p-1 m-1 flex justify-between items-center p-2">
-                <span>{u.name} - {u.email} - [{u.role}]</span>
-                <button
-                  onClick={() => handleRemoveUser(u._id)}
-                  className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded mx-2"
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+          {/* Collapsible Sections */}
+          <div className="d-flex flex-column gap-3">
+            {/* NGO Approvals */}
+            <CollapsibleSection title="NGO Approvals" defaultOpen>
+              {pendingNGOs.length > 0 ? (
+                <div className="d-flex flex-column gap-3">
+                  {pendingNGOs.map((ngo) => (
+                    <div
+                      key={ngo._id}
+                      className="d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-3"
+                      style={{ padding: '14px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#fff' }}
+                    >
+                      <div>
+                        <h6 className="fw-semibold mb-1" style={{ fontSize: '14px', color: '#111827' }}>{ngo.name}</h6>
+                        <p className="mb-1" style={{ fontSize: '13px', color: '#0891b2' }}>{ngo.email}</p>
+                        <p className="mb-0" style={{ fontSize: '12px', color: '#d97706' }}>Applied: {new Date(ngo.createdAt).toLocaleDateString('en-CA')}</p>
+                      </div>
+                      <div className="d-flex gap-2">
+                        <button
+                          className="btn btn-sm btn-success d-flex align-items-center gap-1"
+                          style={{ fontSize: '13px', padding: '5px 14px', borderRadius: '6px' }}
+                          onClick={() => handleApproveNGO(ngo._id)}
+                        >
+                          <i className="bi bi-check-lg"></i> Approve
+                        </button>
+                        <button
+                          className="btn btn-sm d-flex align-items-center gap-1"
+                          style={{ fontSize: '13px', padding: '5px 14px', borderRadius: '6px', color: '#dc2626', border: '1px solid #dc2626', background: 'transparent' }}
+                          onClick={() => handleRejectNGO(ngo._id)}
+                        >
+                          <i className="bi bi-x-lg"></i> Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-muted py-4 mb-0">No pending approvals</p>
+              )}
+            </CollapsibleSection>
 
-      <section className="mb-4 px-4">
-        <h2 className="text-xl font-semibold text-gray-800 cursor-pointer flex justify-between items-center"
-          onClick={() => toggleSection('events')}>All Events <span>{expanded === 'events' ? '▲' : '▼'}</span></h2>
-        {expanded === 'events' && (
-          <ul className="mt-4 space-y-2">
-            {events.map(e => (
-              <li key={e._id} className="border p-2 rounded flex justify-between items-center">
-                <span>{e.title} - {e.location}</span>
-                <button className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded mx-2">Edit</button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+            {/* All Users */}
+            <CollapsibleSection title="All Users">
+              <div className="table-responsive">
+                <table className="table align-middle mb-0" style={{ fontSize: '14px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <th className="fw-bold pb-2" style={{ color: '#6b7280', borderBottom: 'none' }}>Name</th>
+                      <th className="fw-bold pb-2" style={{ color: '#6b7280', borderBottom: 'none' }}>Email</th>
+                      <th className="fw-bold pb-2" style={{ color: '#6b7280', borderBottom: 'none' }}>Role</th>
+                      <th className="fw-bold pb-2" style={{ color: '#6b7280', borderBottom: 'none' }}>Status</th>
+                      <th className="fw-bold pb-2 text-end" style={{ color: '#6b7280', borderBottom: 'none' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allUsers.map((user) => (
+                      <tr key={user._id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <td className="fw-semibold py-3" style={{ color: '#111827' }}>{user.name}</td>
+                        <td className="py-3" style={{ color: '#6b7280' }}>{user.email}</td>
+                        <td className="py-3">
+                          <span className="text-capitalize" style={{ fontSize: '12px', padding: '3px 10px', border: '1px solid #d1d5db', borderRadius: '4px', color: '#374151', background: '#fff' }}>
+                            {user.role}
+                          </span>
+                        </td>
+                        <td className="py-3">
+                          <span style={{
+                            fontSize: '12px',
+                            padding: '3px 10px',
+                            borderRadius: '12px',
+                            background: user.onboardingCompleted ? '#dcfce7' : '#f3f4f6',
+                            color: user.onboardingCompleted ? '#15803d' : '#6b7280'
+                          }}>
+                            {user.onboardingCompleted ? 'active' : 'inactive'}
+                          </span>
+                        </td>
+                        <td className="py-3 text-end">
+                          <button
+                            className="btn btn-sm"
+                            style={{ color: '#dc2626', background: 'none', border: 'none', padding: '2px 6px' }}
+                            onClick={() => handleDeleteUser(user._id)}
+                            title="Delete user"
+                          >
+                            <i className="bi bi-trash" style={{ fontSize: '15px' }}></i>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CollapsibleSection>
 
-      <section className="mb-4 px-4">
-        <h2 className="text-xl font-semibold text-gray-800 cursor-pointer flex justify-between items-center"
-          onClick={() => toggleSection('donations')}>All Donations <span>{expanded === 'donations' ? '▲' : '▼'}</span></h2>
-        {expanded === 'donations' && (
-          <ul className="mt-4 space-y-2">
-            {donations.map(d => (
-              <li key={d._id} className="border p-2 m-1 rounded flex justify-between items-center">
-                ₹{d.amount} by {d.donor?.name || 'Unknown'} to {d.ngo?.name || 'NGO'}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+            {/* All Events */}
+            <CollapsibleSection title="All Events">
+              <div className="table-responsive">
+                <table className="table align-middle mb-0" style={{ fontSize: '14px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <th className="fw-bold pb-2" style={{ color: '#6b7280', borderBottom: 'none' }}>Title</th>
+                      <th className="fw-bold pb-2" style={{ color: '#6b7280', borderBottom: 'none' }}>NGO</th>
+                      <th className="fw-bold pb-2" style={{ color: '#6b7280', borderBottom: 'none' }}>Date</th>
+                      <th className="fw-bold pb-2" style={{ color: '#6b7280', borderBottom: 'none' }}>Volunteers</th>
+                      <th className="fw-bold pb-2 text-end" style={{ color: '#6b7280', borderBottom: 'none' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allEvents.map((event) => (
+                      <tr key={event._id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <td className="fw-semibold py-3" style={{ color: '#111827' }}>{event.title}</td>
+                        <td className="py-3" style={{ color: '#6b7280' }}>{event.ngo?.name || 'N/A'}</td>
+                        <td className="py-3" style={{ color: '#6b7280' }}>{new Date(event.date).toLocaleDateString('en-CA')}</td>
+                        <td className="py-3" style={{ color: '#6b7280' }}>{event.volunteers?.length || 0}</td>
+                        <td className="py-3 text-end">
+                          <button
+                            className="btn btn-sm"
+                            style={{ color: '#dc2626', background: 'none', border: 'none', padding: '2px 6px' }}
+                            onClick={() => handleDeleteEvent(event._id)}
+                            title="Delete event"
+                          >
+                            <i className="bi bi-trash" style={{ fontSize: '15px' }}></i>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CollapsibleSection>
+
+            {/* All Donations */}
+            <CollapsibleSection title="All Donations">
+              <div className="table-responsive">
+                <table className="table align-middle mb-0" style={{ fontSize: '14px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <th className="fw-bold pb-2" style={{ color: '#6b7280', borderBottom: 'none' }}>Donor</th>
+                      <th className="fw-bold pb-2" style={{ color: '#6b7280', borderBottom: 'none' }}>Amount</th>
+                      <th className="fw-bold pb-2" style={{ color: '#6b7280', borderBottom: 'none' }}>NGO</th>
+                      <th className="fw-bold pb-2" style={{ color: '#6b7280', borderBottom: 'none' }}>Event</th>
+                      <th className="fw-bold pb-2" style={{ color: '#6b7280', borderBottom: 'none' }}>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allDonations.map((donation) => (
+                      <tr key={donation._id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <td className="fw-semibold py-3" style={{ color: '#111827' }}>{donation.donor?.name || 'Anonymous'}</td>
+                        <td className="fw-semibold py-3" style={{ color: '#16a34a' }}>₹{donation.amount?.toLocaleString()}</td>
+                        <td className="py-3" style={{ color: '#6b7280' }}>{donation.ngo?.name || 'N/A'}</td>
+                        <td className="py-3" style={{ color: '#6b7280' }}>
+                          {donation.event?.title ? (
+                            <span className="d-flex align-items-center gap-1">
+                              <i className="bi bi-calendar-event small" style={{ color: '#0891b2' }}></i>
+                              {donation.event.title}
+                            </span>
+                          ) : (
+                            <span className="fst-italic">Direct</span>
+                          )}
+                        </td>
+                        <td className="py-3" style={{ color: '#6b7280' }}>{new Date(donation.createdAt).toLocaleDateString('en-CA')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CollapsibleSection>
+          </div>
+        </div>
+      </main>
+
+      <Footer />
     </div>
   );
 };

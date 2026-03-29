@@ -1,8 +1,3 @@
-/**
- * Donation Model
- * Tracks donations made by users to NGOs
- */
-
 const mongoose = require('mongoose');
 const { PAYMENT_CONFIG, VALIDATION } = require('../config/constants');
 

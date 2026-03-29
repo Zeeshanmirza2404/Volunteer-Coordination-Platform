@@ -1,8 +1,3 @@
-/**
- * Application Constants and Configuration
- * Centralized configuration for the entire application
- */
-
 // Load environment variables FIRST before accessing process.env
 require('dotenv').config();
 

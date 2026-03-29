@@ -1,8 +1,3 @@
-/**
- * Event Model
- * Represents volunteer events organized by NGOs
- */
-
 const mongoose = require('mongoose');
 
 const eventSchema = new mongoose.Schema({

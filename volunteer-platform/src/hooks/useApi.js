@@ -1,8 +1,3 @@
-/**
- * useApi Hook
- * Simplified API calls with loading and error states
- */
-
 import { useState, useCallback } from 'react';
 import API, { getErrorMessage } from '../api.js';
 

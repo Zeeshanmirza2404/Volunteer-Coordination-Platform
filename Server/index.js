@@ -1,8 +1,3 @@
-/**
- * Main Server Entry Point
- * Express server with security, compression, and rate limiting
- */
-
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -23,6 +18,7 @@ const ngoRoutes = require('./routes/ngo');
 const eventRoutes = require('./routes/event');
 const donationRoutes = require('./routes/donation');
 const paymentRoutes = require('./routes/payment');
+const volunteerProfileRoutes = require('./routes/volunteerProfile');
 const errorHandler = require('./middleware/errorMiddleware');
 
 // Initialize app
@@ -33,8 +29,8 @@ connectDB();
 
 // Security middleware - must be early in the chain
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable for development, enable in production
-  crossOriginEmbedderPolicy: false
+  contentSecurityPolicy: ENV.NODE_ENV === 'production',
+  crossOriginEmbedderPolicy: ENV.NODE_ENV === 'production'
 }));
 
 // Compression middleware for response compression
@@ -88,16 +84,19 @@ const authLimiter = rateLimit({
 
 // Apply rate limiters
 app.use('/api/', apiLimiter);
-app.use('/api/auth', authLimiter);
+// The authLimiter is now applied directly to the authRoutes below,
+// so this general application for /api/auth is no longer needed.
+// app.use('/api/auth', authLimiter);
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ngo', ngoRoutes);
 app.use('/api/event', eventRoutes);
 app.use('/api/donate', donationRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/volunteer', volunteerProfileRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -180,4 +179,4 @@ process.on('unhandledRejection', (err) => {
   });
 });
 
-module.exports = app; // Export for testing
+module.exports = app;

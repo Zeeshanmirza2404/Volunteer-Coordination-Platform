@@ -1,8 +1,3 @@
-/**
- * Error Boundary Component
- * Catches JavaScript errors anywhere in the child component tree
- */
-
 import React from 'react';
 import PropTypes from 'prop-types';
 
@@ -30,7 +25,6 @@ class ErrorBoundary extends React.Component {
       errorInfo
     });
 
-    // You can also log to an error reporting service here
     if (import.meta.env.PROD) {
       // logErrorToService(error, errorInfo);
     }

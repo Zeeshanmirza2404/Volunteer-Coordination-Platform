@@ -1,8 +1,3 @@
-/**
- * NGO Model
- * Represents Non-Governmental Organizations in the system
- */
-
 const mongoose = require('mongoose');
 const { NGO_STATUS, VALIDATION } = require('../config/constants');
 
@@ -16,7 +11,6 @@ const ngoSchema = new mongoose.Schema({
   email: { 
     type: String, 
     required: [true, 'Email is required'],
-    unique: true,
     lowercase: true,
     trim: true,
     validate: {
@@ -42,6 +36,16 @@ const ngoSchema = new mongoose.Schema({
   website: {
     type: String,
     trim: true
+  },
+  category: {
+    type: String,
+    enum: ['environment', 'education', 'healthcare', 'food', 'elderly', 'animals', 'disaster', 'community'],
+    trim: true
+  },
+  mission: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Mission statement must not exceed 500 characters']
   },
   // Consolidated status field (replaces isApproved)
   status: {

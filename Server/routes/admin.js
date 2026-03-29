@@ -14,14 +14,32 @@ router.get('/ngos', async (req, res) => {
   }
 });
 
-// Approve NGO
+// Update NGO Status (Approve/Reject)
 router.put('/approve/:id', async (req, res) => {
   try {
-    const ngo = await NGO.findByIdAndUpdate(req.params.id, { isApproved: true });
+    const { status } = req.body;
+    
+    if (!['approved', 'rejected'].includes(status)) {
+       // Default to approved if no status provided, for backward compatibility
+       if (!status) {
+         // Proceed with 'approved'
+       } else {
+         return res.status(400).json({ message: 'Invalid status' });
+       }
+    }
+
+    const finalStatus = status || 'approved';
+
+    const ngo = await NGO.findByIdAndUpdate(
+      req.params.id, 
+      { status: finalStatus },
+      { new: true }
+    );
     if (!ngo) return res.status(404).json({ message: 'NGO not found' });
-    res.json({ message: 'NGO verified', ngo });
+    
+    res.json({ message: `NGO ${finalStatus}`, ngo });
   } catch (err) {
-    res.status(500).json({ message: 'Error approving NGO', error: err.message });
+    res.status(500).json({ message: 'Error updating NGO status', error: err.message });
   }
 });
 

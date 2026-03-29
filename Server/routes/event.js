@@ -1,8 +1,3 @@
-/**
- * Event Routes
- * Handles event creation, retrieval, updates, and volunteer registration
- */
-
 const express = require('express');
 const router = express.Router();
 const Event = require('../models/Event');
@@ -57,7 +52,7 @@ router.post('/', verifyToken, async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   try {
     const events = await Event.find()
-      .populate('ngo', 'name email')
+      .populate('ngo', 'name email description address phone website mission category')
       .sort({ date: 1 })
       .lean();
     
@@ -129,7 +124,7 @@ router.get('/my', verifyToken, async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const event = await Event.findById(req.params.id)
-      .populate('ngo', 'name')
+      .populate('ngo', 'name email description address phone website mission category')
       .populate('volunteers', 'name email');
     
     if (!event) {

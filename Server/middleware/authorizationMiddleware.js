@@ -1,9 +1,3 @@
-/**
- * Role-Based Authorization Middleware
- * Protects routes based on user role
- * Usage: app.get('/admin/route', authorizeRoles('admin'), controller)
- */
-
 const authorizeRoles = (...allowedRoles) => {
   return (req, res, next) => {
     // req.user should be set by authMiddleware

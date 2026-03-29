@@ -1,9 +1,3 @@
-/**
- * Global Error Handling Middleware
- * Centralized error handling for all routes
- * Use: app.use(errorHandler) at the very end of middleware chain
- */
-
 const errorHandler = (err, req, res, next) => {
   // Set default error response
   let error = { ...err };

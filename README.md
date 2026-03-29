@@ -192,15 +192,42 @@ curl -X POST http://localhost:5000/api/auth/register \
 
 ## 🎯 Production Deployment
 
-The application is production-ready for:
+Follow these steps to deploy the application to a production environment (e.g., VPS, Heroku, AWS).
 
-- Error handling ✅
-- Authentication ✅
-- Authorization ✅
-- Input validation ✅
-- Environment configuration ✅
+### 1. Environment Variables
+Ensure all required environment variables are set in your production host. Use the provided `.env.example` files as a reference.
 
-**For production:** Replace fake payment system with real Razorpay integration.
+**Backend:**
+- `NODE_ENV=production`
+- `PORT` (e.g., 5000)
+- `MONGO_URI` (Your production MongoDB connection string)
+- `JWT_SECRET` (A strong, unique secret key)
+- `CLIENT_URL` (The final URL of your frontend, e.g., `https://volunteer-connect.com`)
+
+**Frontend:**
+- `VITE_API_BASE_URL` (The final URL of your backend API, e.g., `https://api.volunteer-connect.com/api`)
+
+### 2. Build & Start
+```bash
+# Frontend
+cd volunteer-platform
+npm install
+npm run build      # Generates 'dist' folder
+
+# Backend
+cd Server
+npm install
+npm start          # Starts server using 'node index.js'
+```
+
+### 3. Security Check
+- ✅ `helmet` is active with CSP enabled in production.
+- ✅ `cors` is restricted to your `CLIENT_URL`.
+- ✅ Rate limiting is active for all API and Auth routes.
+- ✅ Error stack traces are hidden in production responses.
+
+> [!IMPORTANT]
+> For a live "real-world" deployment, replace the mock payment logic in `Server/routes/payment.js` and `volunteer-platform/src/components/DonateButton.jsx` with a real provider like Razorpay or Stripe.
 
 ---
 

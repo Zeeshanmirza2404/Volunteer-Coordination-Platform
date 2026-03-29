@@ -1,8 +1,3 @@
-/**
- * User Model
- * Represents users in the system (volunteers, NGOs, admins)
- */
-
 const mongoose = require('mongoose');
 const { USER_ROLES, VALIDATION } = require('../config/constants');
 
@@ -49,6 +44,14 @@ const userSchema = new mongoose.Schema({
       message: '{VALUE} is not a valid role'
     },
     default: USER_ROLES.VOLUNTEER 
+  },
+  onboardingCompleted: {
+    type: Boolean,
+    default: false
+  },
+  profileData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   }
 }, {
   timestamps: true, // Automatically adds createdAt and updatedAt
@@ -83,6 +86,7 @@ userSchema.methods.getPublicProfile = function() {
     name: this.name,
     email: this.email,
     role: this.role,
+    onboardingCompleted: this.onboardingCompleted,
     createdAt: this.createdAt
   };
 };

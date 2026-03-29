@@ -1,8 +1,3 @@
-/**
- * Payment Routes
- * Endpoints for fake payment system
- */
-
 const express = require('express');
 const router = express.Router();
 const { 

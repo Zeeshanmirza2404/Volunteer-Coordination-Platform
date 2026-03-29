@@ -1,47 +1,49 @@
-/**
- * Donation Routes
- * Handle donation-related endpoints
- */
-
 const express = require('express');
 const router = express.Router();
 const Donation = require('../models/Donation');
-const Event = require('../models/Event');
+const NGO = require('../models/NGO');
 const { verifyToken } = require('../middleware/authMiddleware');
 
 /**
- * POST /api/donate/event/:eventId
- * Create a donation for a specific event (deprecated - use payment endpoints)
+ * POST /api/donate
+ * Create a new donation
+ * Auth: Required
  */
-router.post('/event/:eventId', verifyToken, async (req, res, next) => {
+router.post('/', verifyToken, async (req, res, next) => {
   try {
-    const donor = req.user.id;
-    const { amount } = req.body;
-    const eventId = req.params.eventId;
+    const { ngoId, amount, currency, paymentId, orderId, eventId } = req.body;
+    const donor = req.user.id; // From verifyToken
 
-    // Validation
+    // Basic Validation
+    if (!ngoId) {
+      const error = new Error('NGO ID is required');
+      error.statusCode = 400;
+      return next(error);
+    }
+
     if (!amount || amount < 1) {
       const error = new Error('Invalid donation amount');
       error.statusCode = 400;
       return next(error);
     }
 
-    // Find the event to get the NGO
-    const event = await Event.findById(eventId);
-    if (!event) {
-      const error = new Error('Event not found');
+    // Verify NGO exists
+    const ngo = await NGO.findById(ngoId);
+    if (!ngo) {
+      const error = new Error('NGO not found');
       error.statusCode = 404;
       return next(error);
     }
 
-    const ngo = event.ngo;
-
+    // Create Donation
     const donation = new Donation({
       donor,
+      ngo: ngoId,
+      event: eventId || null,
       amount,
-      ngo,
-      event: eventId,
-      paymentStatus: 'completed'
+      // paymentId, // Optional: if integrating real payment gateway later
+      // orderId,   // Optional
+      paymentStatus: 'completed' // Mocking successful payment for now
     });
 
     await donation.save();
@@ -57,16 +59,67 @@ router.post('/event/:eventId', verifyToken, async (req, res, next) => {
 });
 
 /**
- * GET /api/donate
- * Get all donations (with optional filters)
+ * GET /api/donate/ngo/:ngoId
+ * Get donations for a specific NGO
+ * Auth: Required (Should strictly be NGO owner or Admin, but keeping open for now per plan)
  */
-router.get('/', async (req, res, next) => {
+router.get('/ngo/:ngoId', verifyToken, async (req, res, next) => {
+  try {
+    const { ngoId } = req.params;
+
+    // Optional: Add ownership check here if we want to restrict viewing
+    // const ngo = await NGO.findById(ngoId);
+    // if (ngo.userId.toString() !== req.user.id) ...
+
+    const donations = await Donation.find({ ngo: ngoId })
+      .populate('donor', 'name email')
+      .populate('event', 'title')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: donations.length,
+      data: donations
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/donate/my
+ * Get donations made by the authenticated user
+ * Auth: Required
+ */
+router.get('/my', verifyToken, async (req, res, next) => {
+  try {
+    const donations = await Donation.find({ donor: req.user.id })
+      .populate('ngo', 'name')
+      .populate('event', 'title')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: donations.length,
+      data: donations
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/donate
+ * Get all donations (Admin use mostly)
+ * Auth: Required
+ */
+router.get('/', verifyToken, async (req, res, next) => {
   try {
     const donations = await Donation.find()
       .populate('donor', 'name email')
       .populate('ngo', 'name')
       .populate('event', 'title')
-      .sort({ date: -1 });
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -82,12 +135,11 @@ router.get('/', async (req, res, next) => {
  * GET /api/donate/:donationId
  * Get a specific donation by ID
  */
-router.get('/:donationId', async (req, res, next) => {
+router.get('/:donationId', verifyToken, async (req, res, next) => {
   try {
     const donation = await Donation.findById(req.params.donationId)
       .populate('donor', 'name email')
-      .populate('ngo', 'name')
-      .populate('event', 'title');
+      .populate('ngo', 'name');
 
     if (!donation) {
       const error = new Error('Donation not found');
