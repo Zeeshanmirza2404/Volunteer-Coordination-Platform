@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
@@ -33,8 +32,7 @@ app.use(helmet({
   crossOriginEmbedderPolicy: ENV.NODE_ENV === 'production'
 }));
 
-// Compression middleware for response compression
-app.use(compression());
+// Security middleware - must be early in the chain
 
 // CORS configuration
 app.use(cors({
